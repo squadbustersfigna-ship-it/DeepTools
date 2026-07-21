@@ -1,0 +1,648 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Drawing;
+using System.Windows.Forms;
+
+namespace DeepTools
+{
+    public class GameBoosterPanel : Panel
+    {
+        private static readonly string[] KnownHeavyApps = new string[]
+        {
+            "chrome", "msedge", "firefox", "opera", "yandexbrowser",
+            "discord", "spotify", "epicgameslauncher", "origin", "uplay",
+            "steamwebhelper", "skype", "teams", "telegram", "whatsapp"
+        };
+
+        private System.Windows.Forms.Timer detectTimer = new System.Windows.Forms.Timer();
+        private Process detectedProcess;
+        private Process lastBoostedProcess;
+
+        private Label statusName;
+        private Label warningLabel;
+        private ToggleSwitch autoBoostToggle;
+        private ToggleSwitch overlayToggle;
+        private OverlayForm overlayForm;
+        private RoundedButton boostBtn;
+        private Label statusLabel;
+
+        private ToggleSwitch ultimateToggle;
+        private bool ultimateBusy = false;
+
+        // Включение/выключение плана Ultimate Performance. powercfg работает быстро,
+        // но на всякий случай защищаемся от повторного клика во время применения
+        private void OnUltimateToggle()
+        {
+            if (ultimateBusy) return;
+            ultimateBusy = true;
+            bool enable = ultimateToggle.Checked;
+
+            bool ok = enable ? PowerPlan.EnableUltimate() : PowerPlan.RestorePrevious();
+
+            if (ok)
+            {
+                statusLabel.Text = enable
+                    ? Lang.T("План Ultimate Performance активирован, парковка ядер отключена", "Ultimate Performance plan activated, core parking disabled")
+                    : Lang.T("Возвращён прежний план питания", "Previous power plan restored");
+                statusLabel.ForeColor = Theme.Accent;
+            }
+            else
+            {
+                statusLabel.Text = Lang.T("Не удалось изменить план питания", "Failed to change power plan");
+                statusLabel.ForeColor = Theme.Warning;
+                ultimateToggle.Checked = !enable;
+                ultimateToggle.Invalidate();
+            }
+            ultimateBusy = false;
+        }
+
+        private ToggleSwitch crosshairToggle;
+        private CrosshairForm crosshairForm;
+        private string crossShape = "cross";
+        private Color crossColor = Color.FromArgb(46, 214, 140);
+        private int crossScale = 2;
+        private List<RoundedButton> shapeButtons = new List<RoundedButton>();
+        private List<RoundedButton> sizeButtons = new List<RoundedButton>();
+
+        // Пересоздать прицел с текущими настройками (форма/цвет/размер меняются только пересозданием)
+        private void ApplyCrosshair()
+        {
+            if (crosshairForm != null && !crosshairForm.IsDisposed)
+            {
+                crosshairForm.Close();
+                crosshairForm = null;
+            }
+            if (crosshairToggle.Checked)
+            {
+                crosshairForm = new CrosshairForm(crossShape, crossColor, crossScale);
+                crosshairForm.Show();
+            }
+        }
+
+        private void SaveAndRefreshCrosshair()
+        {
+            // Если прицел выключен - выбор настроек его сразу включает
+            if (!crosshairToggle.Checked)
+            {
+                crosshairToggle.Checked = true;
+                crosshairToggle.Invalidate();
+            }
+            ApplyCrosshair();
+        }
+
+        // Показать/скрыть FPS-оверлей. Форма создаётся заново при каждом включении -
+        // так проще, чем следить за состоянием после закрытия
+        public void SetOverlayVisible(bool visible)
+        {
+            if (visible)
+            {
+                if (overlayForm == null || overlayForm.IsDisposed)
+                {
+                    overlayForm = new OverlayForm();
+                }
+                overlayForm.Show();
+            }
+            else
+            {
+                if (overlayForm != null && !overlayForm.IsDisposed)
+                {
+                    overlayForm.Close();
+                    overlayForm = null;
+                }
+            }
+            if (overlayToggle.Checked != visible)
+            {
+                overlayToggle.Checked = visible;
+                overlayToggle.Invalidate();
+            }
+        }
+
+        public void ToggleOverlay()
+        {
+            SetOverlayVisible(overlayForm == null || overlayForm.IsDisposed);
+        }
+
+        private FlowLayoutPanel heavyList;
+        private List<CheckBox> heavyChecks = new List<CheckBox>();
+        private List<List<Process>> heavyGroups = new List<List<Process>>();
+
+        public GameBoosterPanel()
+        {
+            Size = new Size(760, 616);
+            BackColor = Theme.BgColor;
+
+            detectTimer.Interval = 1500;
+            detectTimer.Tick += (s, e) => DetectFullscreenGame();
+
+            BuildUi();
+            RefreshHeavyList();
+
+            detectTimer.Start();
+        }
+
+        private void BuildUi()
+        {
+            var titleLbl = new Label
+            {
+                Text = "GameBooster",
+                ForeColor = Theme.TextMain,
+                BackColor = Color.Transparent,
+                Font = new Font("Segoe UI", 18F, FontStyle.Bold),
+                Location = new Point(24, 16),
+                AutoSize = true
+            };
+            Controls.Add(titleLbl);
+
+            var gameTimeBtn = new RoundedButton
+            {
+                Text = Lang.T("Время в играх", "Game time"),
+                ButtonColor = Theme.KeyColor,
+                HoverColor = Theme.KeyHover,
+                TextColor = Theme.TextMain,
+                Location = new Point(596, 20),
+                Size = new Size(140, 32)
+            };
+            gameTimeBtn.Click += (s, e) => {
+                using (var f = new GameTimeForm())
+                {
+                    f.ShowDialog(FindForm());
+                }
+            };
+            Controls.Add(gameTimeBtn);
+
+            var detectCard = Theme.MakeCard(this, new Point(24, 60), new Size(712, 130));
+
+            var detectTitle = new Label
+            {
+                Text = Lang.T("Обнаруженный процесс", "Detected process"),
+                ForeColor = Theme.TextDim,
+                BackColor = Color.Transparent,
+                Font = new Font("Segoe UI", 9F),
+                Location = new Point(20, 14),
+                AutoSize = true
+            };
+            detectCard.Controls.Add(detectTitle);
+
+            statusName = new Label
+            {
+                Text = Lang.T("Игра не обнаружена", "No game detected"),
+                ForeColor = Theme.TextDim,
+                BackColor = Color.Transparent,
+                Font = new Font("Segoe UI", 15F, FontStyle.Bold),
+                Location = new Point(20, 36),
+                AutoSize = true
+            };
+            detectCard.Controls.Add(statusName);
+
+            warningLabel = new Label
+            {
+                Text = Lang.T("Игра должна быть в полноэкранном режиме, иначе процесс не определится", "The game must be in fullscreen mode, otherwise the process cannot be detected"),
+                ForeColor = Theme.Warning,
+                BackColor = Color.Transparent,
+                Font = new Font("Segoe UI", 8.5F),
+                Location = new Point(20, 66),
+                Size = new Size(420, 32)
+            };
+            detectCard.Controls.Add(warningLabel);
+
+            boostBtn = new RoundedButton
+            {
+                Text = Lang.T("Поднять приоритет", "Boost priority"),
+                ButtonColor = Theme.Accent,
+                HoverColor = Theme.AccentHover,
+                TextColor = Theme.BgColor,
+                Location = new Point(480, 34),
+                Size = new Size(200, 36),
+                Enabled = false
+            };
+            boostBtn.Click += (s, e) => {
+                if (detectedProcess != null) BoostProcess(detectedProcess);
+            };
+            detectCard.Controls.Add(boostBtn);
+
+            var autoLabel = new Label
+            {
+                Text = Lang.T("Авто-буст новой игры", "Auto-boost new game"),
+                ForeColor = Theme.TextMain,
+                BackColor = Color.Transparent,
+                Font = new Font("Segoe UI", 9F),
+                Location = new Point(480, 78),
+                AutoSize = true
+            };
+            detectCard.Controls.Add(autoLabel);
+
+            autoBoostToggle = new ToggleSwitch { Location = new Point(660, 74), Checked = false };
+            detectCard.Controls.Add(autoBoostToggle);
+
+            var overlayLabel = new Label
+            {
+                Text = Lang.T("FPS-оверлей (FPS, CPU, GPU, RAM в углу экрана)", "FPS overlay (FPS, CPU, GPU, RAM in screen corner)"),
+                ForeColor = Theme.TextMain,
+                BackColor = Color.Transparent,
+                Font = new Font("Segoe UI", 9F),
+                Location = new Point(20, 100),
+                AutoSize = true
+            };
+            detectCard.Controls.Add(overlayLabel);
+
+            overlayToggle = new ToggleSwitch { Location = new Point(380, 96), Checked = false };
+            overlayToggle.CheckedChanged += (s, e) => SetOverlayVisible(overlayToggle.Checked);
+            detectCard.Controls.Add(overlayToggle);
+
+            var winKeyLabel = new Label
+            {
+                Text = Lang.T("Блокировать Win в игре", "Block Win key in game"),
+                ForeColor = Theme.TextMain,
+                BackColor = Color.Transparent,
+                Font = new Font("Segoe UI", 9F),
+                Location = new Point(480, 104),
+                AutoSize = true
+            };
+            detectCard.Controls.Add(winKeyLabel);
+
+            var winKeyToggle = new ToggleSwitch { Location = new Point(660, 100), Checked = WinKeyBlocker.Enabled };
+            winKeyToggle.CheckedChanged += (s, e) => { WinKeyBlocker.Enabled = winKeyToggle.Checked; };
+            detectCard.Controls.Add(winKeyToggle);
+
+            // Карточка прицела
+            var crossCard = Theme.MakeCard(this, new Point(24, 202), new Size(712, 64));
+
+            var crossTitle = new Label
+            {
+                Text = Lang.T("Прицел", "Crosshair"),
+                ForeColor = Theme.TextMain,
+                BackColor = Color.Transparent,
+                Font = new Font("Segoe UI", 10F, FontStyle.Bold),
+                Location = new Point(18, 20),
+                AutoSize = true
+            };
+            crossCard.Controls.Add(crossTitle);
+
+            crosshairToggle = new ToggleSwitch { Location = new Point(84, 18), Checked = false };
+            crosshairToggle.CheckedChanged += (s, e) => ApplyCrosshair();
+            crossCard.Controls.Add(crosshairToggle);
+
+            string[] shapes = { "cross", "dot", "circle", "tshape" };
+            string[] shapeLabels = { "✚", "•", "◯", "┬" };
+            int sx = 150;
+            for (int i = 0; i < shapes.Length; i++)
+            {
+                string shapeVal = shapes[i];
+                var b = new RoundedButton
+                {
+                    Text = shapeLabels[i],
+                    Font = new Font("Segoe UI", 10F, FontStyle.Bold),
+                    Location = new Point(sx, 16),
+                    Size = new Size(36, 30)
+                };
+                b.Click += (s, e) => { crossShape = shapeVal; SaveAndRefreshCrosshair(); };
+                crossCard.Controls.Add(b);
+                shapeButtons.Add(b);
+                sx += 40;
+            }
+
+            Color[] colors = {
+                Color.FromArgb(46, 214, 140), Color.FromArgb(240, 70, 70),
+                Color.FromArgb(80, 170, 255), Color.FromArgb(250, 230, 60), Color.White
+            };
+            sx = 330;
+            for (int i = 0; i < colors.Length; i++)
+            {
+                Color colorVal = colors[i];
+                var b = new RoundedButton
+                {
+                    Text = "",
+                    ButtonColor = colorVal,
+                    HoverColor = colorVal,
+                    Location = new Point(sx, 19),
+                    Size = new Size(24, 24)
+                };
+                b.Click += (s, e) => { crossColor = colorVal; SaveAndRefreshCrosshair(); };
+                crossCard.Controls.Add(b);
+                sx += 30;
+            }
+
+            string[] sizeLabels = { "S", "M", "L" };
+            sx = 500;
+            for (int i = 0; i < 3; i++)
+            {
+                int scaleVal = i + 1;
+                var b = new RoundedButton
+                {
+                    Text = sizeLabels[i],
+                    Font = new Font("Segoe UI", 9F, FontStyle.Bold),
+                    Location = new Point(sx, 16),
+                    Size = new Size(32, 30)
+                };
+                b.Click += (s, e) => { crossScale = scaleVal; SaveAndRefreshCrosshair(); };
+                crossCard.Controls.Add(b);
+                sizeButtons.Add(b);
+                sx += 36;
+            }
+
+            // Карточка электропитания: Ultimate Performance + отключение парковки ядер
+            var powerCard = Theme.MakeCard(this, new Point(24, 278), new Size(712, 64));
+
+            var powerTitle = new Label
+            {
+                Text = "Ultimate Performance",
+                ForeColor = Theme.TextMain,
+                BackColor = Color.Transparent,
+                Font = new Font("Segoe UI", 10F, FontStyle.Bold),
+                Location = new Point(18, 20),
+                AutoSize = true
+            };
+            powerCard.Controls.Add(powerTitle);
+
+            var powerDesc = new Label
+            {
+                Text = Lang.T(
+                    "Скрытый план питания Windows для максимальной производительности + отключение парковки ядер CPU",
+                    "Hidden Windows power plan for maximum performance + CPU core parking disabled"),
+                ForeColor = Theme.TextDim,
+                BackColor = Color.Transparent,
+                Font = new Font("Segoe UI", 8F),
+                Location = new Point(200, 14),
+                Size = new Size(430, 36)
+            };
+            powerCard.Controls.Add(powerDesc);
+
+            ultimateToggle = new ToggleSwitch { Location = new Point(646, 18), Checked = PowerPlan.IsUltimateActive() };
+            ultimateToggle.CheckedChanged += (s, e) => OnUltimateToggle();
+            powerCard.Controls.Add(ultimateToggle);
+
+            var heavyCard = Theme.MakeCard(this, new Point(24, 354), new Size(712, 222));
+
+            var heavyTitle = new Label
+            {
+                Text = Lang.T("Тяжёлый фон", "Heavy background"),
+                ForeColor = Theme.TextMain,
+                BackColor = Color.Transparent,
+                Font = new Font("Segoe UI", 11F, FontStyle.Bold),
+                Location = new Point(18, 16),
+                AutoSize = true
+            };
+            heavyCard.Controls.Add(heavyTitle);
+
+            var heavyDesc = new Label
+            {
+                Text = Lang.T("Программы, которые обычно можно закрыть без вреда системе. Несколько окон одной программы считаются одной строкой.", "Apps that can usually be closed safely. Multiple windows of one app are grouped into one row."),
+                ForeColor = Theme.TextDim,
+                BackColor = Color.Transparent,
+                Font = new Font("Segoe UI", 8.5F),
+                Location = new Point(18, 42),
+                Size = new Size(676, 18),
+                AutoEllipsis = true
+            };
+            heavyCard.Controls.Add(heavyDesc);
+
+            var refreshBtn = new RoundedButton
+            {
+                Text = Lang.T("Обновить", "Refresh"),
+                ButtonColor = Theme.KeyColor,
+                HoverColor = Theme.KeyHover,
+                TextColor = Theme.TextMain,
+                Location = new Point(452, 14),
+                Size = new Size(110, 32)
+            };
+            refreshBtn.Click += (s, e) => RefreshHeavyList();
+            heavyCard.Controls.Add(refreshBtn);
+
+            var killBtn = new RoundedButton
+            {
+                Text = Lang.T("Завершить", "Kill"),
+                ButtonColor = Theme.Danger,
+                HoverColor = Theme.DangerHover,
+                TextColor = Theme.BgColor,
+                Location = new Point(570, 14),
+                Size = new Size(120, 32)
+            };
+            killBtn.Click += (s, e) => TerminateSelected();
+            heavyCard.Controls.Add(killBtn);
+
+            heavyList = new FlowLayoutPanel
+            {
+                Location = new Point(18, 66),
+                Size = new Size(676, 142),
+                BackColor = Theme.SidebarColor,
+                FlowDirection = FlowDirection.TopDown,
+                WrapContents = false,
+                AutoScroll = true
+            };
+            heavyCard.Controls.Add(heavyList);
+
+            statusLabel = new Label
+            {
+                Text = "",
+                ForeColor = Theme.Accent,
+                BackColor = Color.Transparent,
+                Font = new Font("Segoe UI", 8.5F),
+                Location = new Point(24, 586),
+                AutoSize = true
+            };
+            Controls.Add(statusLabel);
+        }
+
+        private void DetectFullscreenGame()
+        {
+            // Трекер сессий живёт своей жизнью: следит за процессом игры,
+            // даже когда она свёрнута, и сам finalize'ит сессию после выхода
+            GameSessionTracker.Tick();
+
+            IntPtr hwnd = NativeMethods.GetForegroundWindow();
+            if (hwnd == IntPtr.Zero) { ClearDetection(); return; }
+
+            NativeMethods.RECT rect;
+            if (!NativeMethods.GetWindowRect(hwnd, out rect)) { ClearDetection(); return; }
+
+            Screen screen;
+            try { screen = Screen.FromHandle(hwnd); }
+            catch { ClearDetection(); return; }
+
+            Rectangle bounds = screen.Bounds;
+            int width = rect.Right - rect.Left;
+            int height = rect.Bottom - rect.Top;
+
+            bool isFullscreen = rect.Left <= bounds.Left + 2 && rect.Top <= bounds.Top + 2 &&
+                                 width >= bounds.Width - 4 && height >= bounds.Height - 4;
+
+            if (!isFullscreen) { WinKeyBlocker.GameActive = false; ClearDetection(); return; }
+
+            uint pid;
+            NativeMethods.GetWindowThreadProcessId(hwnd, out pid);
+
+            try
+            {
+                Process proc = Process.GetProcessById((int)pid);
+                if (IsShellProcess(proc.ProcessName)) { WinKeyBlocker.GameActive = false; ClearDetection(); return; }
+
+                WinKeyBlocker.GameActive = true;
+                detectedProcess = proc;
+                GameSessionTracker.OnGameDetected(proc);
+                statusName.Text = proc.ProcessName + ".exe";
+                statusName.ForeColor = Theme.Accent;
+                boostBtn.Enabled = true;
+                warningLabel.Visible = false;
+
+                if (autoBoostToggle.Checked && (lastBoostedProcess == null || lastBoostedProcess.Id != proc.Id))
+                {
+                    BoostProcess(proc);
+                    lastBoostedProcess = proc;
+                }
+            }
+            catch
+            {
+                ClearDetection();
+            }
+        }
+
+        private void ClearDetection()
+        {
+            WinKeyBlocker.GameActive = false;
+            detectedProcess = null;
+            statusName.Text = Lang.T("Игра не обнаружена", "No game detected");
+            statusName.ForeColor = Theme.TextDim;
+            boostBtn.Enabled = false;
+            warningLabel.Visible = true;
+        }
+
+        private bool IsShellProcess(string name)
+        {
+            string lower = name.ToLowerInvariant();
+            return lower == "explorer" || lower == "dwm" || lower == "searchhost" ||
+                   lower == "shellexperiencehost" || lower == "applicationframehost" ||
+                   lower == "textinputhost" || lower == "startmenuexperiencehost";
+        }
+
+        private void BoostProcess(Process proc)
+        {
+            try
+            {
+                proc.PriorityClass = ProcessPriorityClass.High;
+                statusLabel.Text = Lang.T("Приоритет повышен: ", "Priority boosted: ") + proc.ProcessName + ".exe";
+                statusLabel.ForeColor = Theme.Accent;
+            }
+            catch (Exception ex)
+            {
+                statusLabel.Text = Lang.T("Не удалось поднять приоритет (нужны права администратора?): ", "Failed to boost priority (administrator rights needed?): ") + ex.Message;
+                statusLabel.ForeColor = Theme.Warning;
+            }
+        }
+
+        private void RefreshHeavyList()
+        {
+            heavyList.Controls.Clear();
+            heavyChecks.Clear();
+            heavyGroups.Clear();
+
+            for (int i = 0; i < KnownHeavyApps.Length; i++)
+            {
+                Process[] found;
+                try { found = Process.GetProcessesByName(KnownHeavyApps[i]); }
+                catch { continue; }
+
+                if (found.Length == 0) continue;
+
+                List<Process> group = new List<Process>();
+                long totalRamMb = 0;
+                for (int j = 0; j < found.Length; j++)
+                {
+                    try
+                    {
+                        totalRamMb += found[j].WorkingSet64 / 1024 / 1024;
+                        group.Add(found[j]);
+                    }
+                    catch
+                    {
+                    }
+                }
+
+                if (group.Count == 0) continue;
+
+                string displayName = KnownHeavyApps[i] + ".exe";
+                if (group.Count > 1) displayName += " (" + group.Count + Lang.T(" процессов)", " processes)");
+
+                // 636 и не шире: иначе с вертикальным скроллбаром (около 17px) появляется
+                // горизонтальная прокрутка, а колонка с мегабайтами уезжает за край
+                var row = new Panel { Size = new Size(636, 32), BackColor = Color.Transparent, Margin = new Padding(0, 2, 0, 2) };
+
+                var check = new CheckBox
+                {
+                    Text = displayName,
+                    ForeColor = Theme.TextMain,
+                    BackColor = Color.Transparent,
+                    Font = new Font("Segoe UI", 9F),
+                    Location = new Point(6, 6),
+                    AutoSize = true,
+                    Checked = true
+                };
+                row.Controls.Add(check);
+
+                var ramLbl = new Label
+                {
+                    Text = totalRamMb + Lang.T(" МБ", " MB"),
+                    ForeColor = Theme.TextDim,
+                    BackColor = Color.Transparent,
+                    Font = new Font("Segoe UI", 8.5F),
+                    Location = new Point(536, 8),
+                    Size = new Size(96, 16),
+                    TextAlign = ContentAlignment.MiddleRight,
+                    AutoSize = false
+                };
+                row.Controls.Add(ramLbl);
+
+                heavyList.Controls.Add(row);
+                heavyChecks.Add(check);
+                heavyGroups.Add(group);
+            }
+
+            if (heavyGroups.Count == 0)
+            {
+                var emptyLbl = new Label
+                {
+                    Text = Lang.T("Тяжёлых фоновых программ из списка не найдено", "No heavy background apps from the list found"),
+                    ForeColor = Theme.TextDim,
+                    BackColor = Color.Transparent,
+                    Font = new Font("Segoe UI", 9F),
+                    Location = new Point(6, 6),
+                    AutoSize = true
+                };
+                heavyList.Controls.Add(emptyLbl);
+            }
+        }
+
+        private void TerminateSelected()
+        {
+            int killedGroups = 0;
+            int killedProcs = 0;
+
+            for (int i = 0; i < heavyChecks.Count; i++)
+            {
+                if (!heavyChecks[i].Checked) continue;
+
+                List<Process> group = heavyGroups[i];
+                bool anyKilled = false;
+                for (int j = 0; j < group.Count; j++)
+                {
+                    try
+                    {
+                        group[j].Kill();
+                        killedProcs++;
+                        anyKilled = true;
+                    }
+                    catch
+                    {
+                    }
+                }
+                if (anyKilled) killedGroups++;
+            }
+
+            statusLabel.Text = killedProcs > 0
+                ? Lang.T("Завершено программ: ", "Apps closed: ") + killedGroups + " (" + killedProcs + Lang.T(" процессов)", " processes)")
+                : Lang.T("Ничего не выбрано или не удалось завершить", "Nothing selected or failed to close");
+            statusLabel.ForeColor = killedProcs > 0 ? Theme.Accent : Theme.Warning;
+            RefreshHeavyList();
+        }
+    }
+}
