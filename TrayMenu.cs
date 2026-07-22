@@ -119,10 +119,24 @@ namespace DeepTools
         {
             fadeTimer = new System.Windows.Forms.Timer { Interval = 15 };
             fadeTimer.Tick += (s, e) => {
+                // Форму могли закрыть (Deactivate/Выход) до конца анимации -
+                // тогда обращение к Opacity кинет ObjectDisposedException
+                if (IsDisposed || Disposing) { fadeTimer.Stop(); fadeTimer.Dispose(); return; }
                 Opacity = Math.Min(1.0, Opacity + 0.18);
                 if (Opacity >= 1.0) { fadeTimer.Stop(); fadeTimer.Dispose(); }
             };
             fadeTimer.Start();
+        }
+
+        protected override void OnFormClosed(FormClosedEventArgs e)
+        {
+            // Гасим таймер анимации, чтобы он не тикал по закрытой форме
+            if (fadeTimer != null)
+            {
+                try { fadeTimer.Stop(); fadeTimer.Dispose(); } catch { }
+                fadeTimer = null;
+            }
+            base.OnFormClosed(e);
         }
 
         private void ApplyRoundedRegion()
