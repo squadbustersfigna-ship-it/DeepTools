@@ -21,8 +21,26 @@ namespace DeepTools
         public const uint MOUSEEVENTF_LEFTUP = 0x04;
         public const uint MOUSEEVENTF_RIGHTDOWN = 0x08;
         public const uint MOUSEEVENTF_RIGHTUP = 0x10;
+        public const uint MOUSEEVENTF_MIDDLEDOWN = 0x20;
+        public const uint MOUSEEVENTF_MIDDLEUP = 0x40;
         public const uint KEYEVENTF_KEYUP = 0x0002;
         public const int WM_HOTKEY = 0x0312;
+
+        [DllImport("user32.dll")]
+        public static extern bool SetCursorPos(int x, int y);
+
+        [DllImport("user32.dll")]
+        public static extern bool GetCursorPos(out POINT lpPoint);
+
+        public struct POINT
+        {
+            public int X;
+            public int Y;
+        }
+
+        // Раздельные нажатие/отпускание средней кнопки - для воспроизведения макросов
+        public static void MouseMiddleDown() { mouse_event(MOUSEEVENTF_MIDDLEDOWN, 0, 0, 0, UIntPtr.Zero); }
+        public static void MouseMiddleUp() { mouse_event(MOUSEEVENTF_MIDDLEUP, 0, 0, 0, UIntPtr.Zero); }
 
         public const int HOTKEY_ID_CLICKER = 1;
         public const int HOTKEY_ID_SCREENSHOT = 2;

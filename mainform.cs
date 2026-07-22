@@ -234,6 +234,7 @@ namespace DeepTools
             NativeMethods.RegisterHotKey(this.Handle, NativeMethods.HOTKEY_ID_CLICKER, 0, (uint)Keys.F8);
             NativeMethods.RegisterHotKey(this.Handle, NativeMethods.HOTKEY_ID_SCREENSHOT, 0, (uint)screenshotHotkey);
             NativeMethods.RegisterHotKey(this.Handle, NativeMethods.HOTKEY_ID_OVERLAY, 0, (uint)Keys.F10);
+            NativeMethods.RegisterHotKey(this.Handle, NativeMethods.HOTKEY_ID_REGION, 0, (uint)Keys.F6);
         }
 
         private void UnregisterHotkeys()
@@ -241,6 +242,7 @@ namespace DeepTools
             NativeMethods.UnregisterHotKey(this.Handle, NativeMethods.HOTKEY_ID_CLICKER);
             NativeMethods.UnregisterHotKey(this.Handle, NativeMethods.HOTKEY_ID_SCREENSHOT);
             NativeMethods.UnregisterHotKey(this.Handle, NativeMethods.HOTKEY_ID_OVERLAY);
+            NativeMethods.UnregisterHotKey(this.Handle, NativeMethods.HOTKEY_ID_REGION);
         }
 
         protected override void WndProc(ref Message m)
@@ -259,6 +261,10 @@ namespace DeepTools
                 else if (id == NativeMethods.HOTKEY_ID_OVERLAY)
                 {
                     panelBooster.ToggleOverlay();
+                }
+                else if (id == NativeMethods.HOTKEY_ID_REGION)
+                {
+                    panelScreenshots.CaptureRegion();
                 }
             }
             base.WndProc(ref m);

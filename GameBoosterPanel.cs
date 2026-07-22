@@ -123,6 +123,16 @@ namespace DeepTools
             SetOverlayVisible(overlayForm == null || overlayForm.IsDisposed);
         }
 
+        // Пересоздать оверлей с новыми настройками, если он сейчас показан
+        public void RefreshOverlay()
+        {
+            if (overlayForm != null && !overlayForm.IsDisposed)
+            {
+                SetOverlayVisible(false);
+                SetOverlayVisible(true);
+            }
+        }
+
         private FlowLayoutPanel heavyList;
         private List<CheckBox> heavyChecks = new List<CheckBox>();
         private List<List<Process>> heavyGroups = new List<List<Process>>();
@@ -249,6 +259,25 @@ namespace DeepTools
             overlayToggle = new ToggleSwitch { Location = new Point(380, 96), Checked = false };
             overlayToggle.CheckedChanged += (s, e) => SetOverlayVisible(overlayToggle.Checked);
             detectCard.Controls.Add(overlayToggle);
+
+            var overlayCfgBtn = new RoundedButton
+            {
+                Text = "⚙",
+                ButtonColor = Theme.KeyColor,
+                HoverColor = Theme.KeyHover,
+                TextColor = Theme.TextMain,
+                Font = new Font("Segoe UI", 10F, FontStyle.Bold),
+                Location = new Point(430, 96),
+                Size = new Size(40, 24)
+            };
+            overlayCfgBtn.Click += (s, e) => {
+                using (var f = new OverlayConfigForm())
+                {
+                    f.SettingsChanged += (s2, e2) => RefreshOverlay();
+                    f.ShowDialog(FindForm());
+                }
+            };
+            detectCard.Controls.Add(overlayCfgBtn);
 
             var winKeyLabel = new Label
             {
