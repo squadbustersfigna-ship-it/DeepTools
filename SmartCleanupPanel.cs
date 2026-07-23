@@ -109,6 +109,23 @@ namespace DeepTools
             };
             Controls.Add(titleLbl);
 
+            var largeFilesBtn = new RoundedButton
+            {
+                Text = Lang.T("📦 Большие файлы", "📦 Large files"),
+                ButtonColor = Theme.KeyColor,
+                HoverColor = Theme.KeyHover,
+                TextColor = Theme.TextMain,
+                Location = new Point(560, 22),
+                Size = new Size(180, 32)
+            };
+            largeFilesBtn.Click += (s, e) => {
+                using (var f = new LargeFilesForm())
+                {
+                    f.ShowDialog(FindForm());
+                }
+            };
+            Controls.Add(largeFilesBtn);
+
             int y = 70;
             for (int i = 0; i < categories.Count; i++)
             {

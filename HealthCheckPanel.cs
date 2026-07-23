@@ -182,6 +182,8 @@ namespace DeepTools
         private Label deepResultLabel;
         private bool deepCheckRunning = false;
 
+        private RoundedButton installDriverBtn;
+
         public HealthCheckPanel()
         {
             Size = new Size(760, 616);
@@ -397,9 +399,25 @@ namespace DeepTools
                 BackColor = Color.Transparent,
                 Font = new Font("Segoe UI", 8F),
                 Location = new Point(24, 548),
-                Size = new Size(690, 34)
+                Size = new Size(500, 34)
             };
             Controls.Add(futureDesc);
+
+            // Кнопка появляется, когда датчик CPU недоступен: предлагает поставить
+            // драйвер PawnIO (обходит блокировку «Целостности памяти» в Windows 11)
+            installDriverBtn = new RoundedButton
+            {
+                Text = Lang.T("Вкл. датчики (PawnIO)", "Enable sensors (PawnIO)"),
+                ButtonColor = Theme.Accent,
+                HoverColor = Theme.AccentHover,
+                TextColor = Theme.BgColor,
+                Font = new Font("Segoe UI", 8.5F, FontStyle.Bold),
+                Location = new Point(540, 550),
+                Size = new Size(196, 30),
+                Visible = false
+            };
+            installDriverBtn.Click += (s, e) => SensorDriver.InstallBundled();
+            Controls.Add(installDriverBtn);
 
             statusLabel = new Label
             {
@@ -622,6 +640,7 @@ namespace DeepTools
                     cpuTempValueLabel.Text = cpuTemp + "°C";
                     cpuTempValueLabel.ForeColor = cpuTemp >= OverheatThreshold ? Theme.Danger
                         : (cpuTemp >= OverheatThreshold - 10 ? Theme.Warning : Theme.TextMain);
+                    if (installDriverBtn != null) installDriverBtn.Visible = false;
 
                     if (cpuTemp >= OverheatThreshold)
                     {
@@ -634,6 +653,9 @@ namespace DeepTools
                 else
                 {
                     cpuTempValueLabel.Text = Lang.T("н/д", "n/a");
+                    cpuTempValueLabel.ForeColor = Theme.TextDim;
+                    // Датчик недоступен - вероятно, драйвер заблокирован Windows. Предлагаем PawnIO
+                    if (installDriverBtn != null) installDriverBtn.Visible = true;
                 }
 
                 if (cpuCounter != null) cpuGraph.AddPoint(cpuPercent);

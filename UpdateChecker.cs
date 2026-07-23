@@ -46,7 +46,8 @@ namespace DeepTools
                 {
                     TrayNotify.Info(
                         Lang.T("Доступно обновление ", "Update available ") + latestTag,
-                        Lang.T("Открой Настройки, чтобы скачать новую версию DeepTools", "Open Settings to download the new DeepTools version"));
+                        Lang.T("Нажми сюда, чтобы открыть страницу загрузки", "Click here to open the download page"),
+                        () => OpenReleasesPage());
                     if (callback != null)
                         callback(Lang.T("Доступна новая версия: ", "New version available: ") + latestTag);
                 }

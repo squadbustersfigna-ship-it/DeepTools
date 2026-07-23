@@ -98,22 +98,55 @@ namespace DeepTools
         }
     }
 
-    // Тумблер-переключатель
+    // Тумблер-переключатель с плавной анимацией пимпочки и цвета
     public class ToggleSwitch : TransparentControl
     {
-        public bool Checked = false;
+        private bool _checked = false;
         public event EventHandler CheckedChanged;
+
+        private readonly System.Windows.Forms.Timer animTimer;
+        private float anim = 0f; // 0 = выкл, 1 = вкл (визуальное положение)
+
+        public bool Checked
+        {
+            get { return _checked; }
+            set
+            {
+                if (_checked == value) return;
+                _checked = value;
+                // При программной установке до показа - без анимации, чтобы
+                // восстановленные состояния не «ехали» на старте
+                if (IsHandleCreated) StartAnim();
+                else { anim = value ? 1f : 0f; Invalidate(); }
+            }
+        }
 
         public ToggleSwitch()
         {
             Size = new Size(46, 24);
             Cursor = Cursors.Hand;
+            anim = _checked ? 1f : 0f;
+            animTimer = new System.Windows.Forms.Timer { Interval = 15 };
+            animTimer.Tick += (s, e) => AnimStep();
+        }
+
+        private void StartAnim()
+        {
+            if (!animTimer.Enabled) animTimer.Start();
+        }
+
+        private void AnimStep()
+        {
+            float target = _checked ? 1f : 0f;
+            float d = target - anim;
+            if (Math.Abs(d) < 0.03f) { anim = target; animTimer.Stop(); }
+            else anim += d * 0.35f;
+            Invalidate();
         }
 
         protected override void OnClick(EventArgs e)
         {
             Checked = !Checked;
-            Invalidate();
             if (CheckedChanged != null) CheckedChanged(this, EventArgs.Empty);
             base.OnClick(e);
         }
@@ -123,9 +156,7 @@ namespace DeepTools
             var g = e.Graphics;
             g.SmoothingMode = SmoothingMode.AntiAlias;
 
-            Color trackOn = Theme.Accent;
-            Color trackOff = Theme.KeyHover;
-            Color track = Checked ? trackOn : trackOff;
+            Color track = Theme.Lerp(Theme.KeyHover, Theme.Accent, anim);
 
             using (var path = RoundedRect(new Rectangle(0, 0, Width - 1, Height - 1), Height / 2))
             using (var brush = new SolidBrush(track))
@@ -134,7 +165,8 @@ namespace DeepTools
             }
 
             int d = Height - 6;
-            int x = Checked ? Width - d - 3 : 3;
+            int xOff = 3, xOn = Width - d - 3;
+            int x = xOff + (int)((xOn - xOff) * anim);
             using (var thumb = new SolidBrush(Color.White))
             {
                 g.FillEllipse(thumb, x, 3, d, d);
@@ -301,6 +333,16 @@ namespace DeepTools
             return path;
         }
 
+        // Плавное смешивание двух цветов (t: 0 = a, 1 = b) - для анимаций
+        public static Color Lerp(Color a, Color b, float t)
+        {
+            if (t < 0) t = 0; else if (t > 1) t = 1;
+            int r = (int)(a.R + (b.R - a.R) * t);
+            int g = (int)(a.G + (b.G - a.G) * t);
+            int bl = (int)(a.B + (b.B - a.B) * t);
+            return Color.FromArgb(r, g, bl);
+        }
+
         public static Panel MakeCard(Control parent, Point loc, Size size)
         {
             var card = new Panel { Location = loc, Size = size, BackColor = CardColor };
@@ -328,23 +370,34 @@ namespace DeepTools
         public Color TextColor = Color.Black;
         public int CornerRadius = 12;
 
+        private readonly System.Windows.Forms.Timer hoverTimer;
+        private float hoverAnim = 0f; // 0 = обычный, 1 = наведён
+
         public RoundedButton()
         {
             Size = new Size(120, 36);
             Cursor = Cursors.Hand;
             Font = new Font("Segoe UI", 9F, FontStyle.Bold);
+            hoverTimer = new System.Windows.Forms.Timer { Interval = 15 };
+            hoverTimer.Tick += (s, e) => {
+                float target = isHovering ? 1f : 0f;
+                float d = target - hoverAnim;
+                if (Math.Abs(d) < 0.05f) { hoverAnim = target; hoverTimer.Stop(); }
+                else hoverAnim += d * 0.4f;
+                Invalidate();
+            };
         }
 
         protected override void OnMouseEnter(EventArgs e)
         {
             isHovering = true;
-            Invalidate();
+            if (!hoverTimer.Enabled) hoverTimer.Start();
         }
 
         protected override void OnMouseLeave(EventArgs e)
         {
             isHovering = false;
-            Invalidate();
+            if (!hoverTimer.Enabled) hoverTimer.Start();
         }
 
         protected override void OnPaint(PaintEventArgs e)
@@ -352,7 +405,7 @@ namespace DeepTools
             e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
 
             var rect = new Rectangle(0, 0, Width - 1, Height - 1);
-            Color currentColor = isHovering ? HoverColor : ButtonColor;
+            Color currentColor = Theme.Lerp(ButtonColor, HoverColor, hoverAnim);
 
             // Радиус не больше половины высоты, иначе углы ломаются на маленьких кнопках
             int radius = Math.Min(CornerRadius, (Height - 1) / 2);

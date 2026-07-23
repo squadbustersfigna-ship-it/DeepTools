@@ -100,12 +100,14 @@ namespace DeepTools
         {
             Text = "DeepTools Macros";
             FormBorderStyle = FormBorderStyle.None;
-            Size = new Size(520, 566);
+            Size = new Size(520, 600);
             StartPosition = FormStartPosition.CenterParent;
             BackColor = Theme.BgColor;
             DoubleBuffered = true;
             ShowInTaskbar = false;
-            TopMost = true;
+            // Не поверх окон: чтобы можно было свернуться в игру и записать действия,
+            // а окно макросов не перекрывало игру. Управление идёт по F6/F7
+            TopMost = false;
 
             keyboardProc = KeyboardCallback;
             mouseProc = MouseCallback;
@@ -270,8 +272,41 @@ namespace DeepTools
             };
             ctrlCard.Controls.Add(eventsLabel);
 
+            // Карточка-гид: как записать и воспроизвести
+            var guideCard = Theme.MakeCard(this, new Point(16, 204), new Size(488, 116));
+
+            var guideTitle = new Label
+            {
+                Text = Lang.T("Как пользоваться", "How to use"),
+                ForeColor = Theme.TextMain,
+                BackColor = Color.Transparent,
+                Font = new Font("Segoe UI", 9.5F, FontStyle.Bold),
+                Location = new Point(16, 12),
+                AutoSize = true
+            };
+            guideCard.Controls.Add(guideTitle);
+
+            var guideSteps = new Label
+            {
+                Text = Lang.T(
+                    "1.  Нажми  F6  (или «Запись»)  →  сверни это окно\n" +
+                    "2.  Сделай действия мышью и клавиатурой\n" +
+                    "3.  Нажми  F6  ещё раз  →  запись остановится\n" +
+                    "4.  Нажми  F7  (или «Играть»)  →  макрос повторится",
+                    "1.  Press  F6  (or \"Record\")  →  minimize this window\n" +
+                    "2.  Do your mouse and keyboard actions\n" +
+                    "3.  Press  F6  again  →  recording stops\n" +
+                    "4.  Press  F7  (or \"Play\")  →  the macro repeats"),
+                ForeColor = Theme.TextDim,
+                BackColor = Color.Transparent,
+                Font = new Font("Segoe UI", 8.5F),
+                Location = new Point(16, 36),
+                Size = new Size(460, 76)
+            };
+            guideCard.Controls.Add(guideSteps);
+
             // Карточка сохранённых макросов
-            var savedCard = Theme.MakeCard(this, new Point(16, 204), new Size(488, 300));
+            var savedCard = Theme.MakeCard(this, new Point(16, 330), new Size(488, 224));
 
             var savedTitle = new Label
             {
@@ -311,7 +346,7 @@ namespace DeepTools
             savedList = new FlowLayoutPanel
             {
                 Location = new Point(10, 48),
-                Size = new Size(468, 244),
+                Size = new Size(468, 168),
                 BackColor = Theme.SidebarColor,
                 FlowDirection = FlowDirection.TopDown,
                 WrapContents = false,
@@ -321,13 +356,13 @@ namespace DeepTools
 
             var hint = new Label
             {
-                Text = Lang.T("Движения мыши не записываются - только клики в их точках и клавиши. F6 - запись, F7 - воспроизведение.",
-                              "Mouse movement is not recorded - only clicks at their points and keys. F6 - record, F7 - play."),
+                Text = Lang.T("Движения мыши не записываются — только клики в их точках и клавиши.",
+                              "Mouse movement is not recorded — only clicks at their points and keys."),
                 ForeColor = Theme.TextDim,
                 BackColor = Color.Transparent,
                 Font = new Font("Segoe UI", 8F),
-                Location = new Point(18, 512),
-                Size = new Size(484, 40)
+                Location = new Point(18, 562),
+                Size = new Size(484, 30)
             };
             Controls.Add(hint);
         }

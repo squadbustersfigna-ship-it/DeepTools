@@ -38,6 +38,12 @@ foreach ($dll in $embedDlls) {
     $resourceArgs += "/resource:$dll,DeepTools.Embedded.$asmName.dll"
 }
 
+# Встраиваем установщик драйвера датчиков PawnIO, чтобы предлагать его прямо из программы,
+# когда LibreHardwareMonitor заблокирован (Целостность памяти в Windows 11)
+if (Test-Path "PawnIO_setup.exe") {
+    $resourceArgs += "/resource:PawnIO_setup.exe,DeepTools.PawnIO_setup.exe"
+}
+
 Write-Host "Компиляция $($sources.Count) файлов, встраивание $($embedDlls.Count) DLL..." -ForegroundColor Cyan
 
 & $csc /nologo /target:winexe /out:DeepTools_build.exe `

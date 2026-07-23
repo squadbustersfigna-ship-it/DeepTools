@@ -10,21 +10,51 @@ namespace DeepTools
     // Кулдаун 5 минут, чтобы алерты (например о перегреве) не спамили
     public static class TrayNotify
     {
-        public static NotifyIcon Icon;
+        private static NotifyIcon _icon;
         private static DateTime lastShown = DateTime.MinValue;
+
+        // Действие, которое выполнится при клике по текущему уведомлению
+        // (например, открыть страницу загрузки при обновлении)
+        private static Action pendingClick;
+
+        public static NotifyIcon Icon
+        {
+            get { return _icon; }
+            set
+            {
+                _icon = value;
+                if (_icon != null)
+                {
+                    _icon.BalloonTipClicked += (s, e) =>
+                    {
+                        Action a = pendingClick;
+                        pendingClick = null;
+                        if (a != null) { try { a(); } catch { } }
+                    };
+                }
+            }
+        }
 
         public static void Warn(string title, string message)
         {
             if (Icon == null) return;
             if ((DateTime.Now - lastShown).TotalMinutes < 5) return;
             lastShown = DateTime.Now;
+            pendingClick = null;
             try { Icon.ShowBalloonTip(6000, title, message, ToolTipIcon.Warning); } catch { }
         }
 
         // Информационное уведомление без кулдауна (отчёт после игры и т.п.)
         public static void Info(string title, string message)
         {
+            Info(title, message, null);
+        }
+
+        // Вариант с действием по клику
+        public static void Info(string title, string message, Action onClick)
+        {
             if (Icon == null) return;
+            pendingClick = onClick;
             try { Icon.ShowBalloonTip(8000, title, message, ToolTipIcon.Info); } catch { }
         }
     }

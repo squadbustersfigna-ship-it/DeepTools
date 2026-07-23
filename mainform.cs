@@ -420,6 +420,7 @@ namespace DeepTools
             navSettings.Click += (s, e) => ShowPanel(panelSettings, navSettings);
 
             contentArea = new Panel { Location = new Point(220, 34), Size = new Size(760, 616), BackColor = Theme.BgColor };
+            EnableDoubleBuffer(contentArea);
             Controls.Add(contentArea);
 
             panelHome = new HomePanel();
@@ -522,6 +523,42 @@ namespace DeepTools
 
             panel.Visible = true;
             navItem.SetActive(true);
+            AnimatePanelIn(panel);
+        }
+
+        // Лёгкий слайд-въезд панели слева при переключении раздела
+        private System.Windows.Forms.Timer slideTimer;
+        private Panel slidingPanel;
+
+        private void AnimatePanelIn(Panel panel)
+        {
+            EnableDoubleBuffer(panel);
+            if (slideTimer == null)
+            {
+                slideTimer = new System.Windows.Forms.Timer { Interval = 12 };
+                slideTimer.Tick += (s, e) => {
+                    if (slidingPanel == null) { slideTimer.Stop(); return; }
+                    int left = slidingPanel.Left;
+                    if (left <= 2) { slidingPanel.Left = 0; slideTimer.Stop(); return; }
+                    slidingPanel.Left = left - Math.Max(2, left / 2);
+                };
+            }
+            // Если предыдущая анимация не доиграла - фиксируем прошлую панель
+            if (slidingPanel != null && slidingPanel != panel) slidingPanel.Left = 0;
+            slidingPanel = panel;
+            panel.Left = 22;
+            slideTimer.Start();
+        }
+
+        private static void EnableDoubleBuffer(Control c)
+        {
+            try
+            {
+                typeof(Control).GetProperty("DoubleBuffered",
+                    System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
+                    .SetValue(c, true, null);
+            }
+            catch { }
         }
 
         private Panel BuildSettingsPanel()

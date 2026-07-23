@@ -112,6 +112,11 @@ namespace DeepTools
 
         private List<KeyBtn> keyButtons = new List<KeyBtn>();
 
+        // Режим нескольких клавиш: спамим сразу все выбранные (например e, w, r)
+        private bool multiKeyMode = false;
+        private List<Keys> multiKeys = new List<Keys>();
+        private ToggleSwitch multiKeyToggle;
+
         private string selectedKeyLabel = "W";
         private long sessionClicks = 0;
         private long totalClicks = 0;
@@ -438,10 +443,45 @@ namespace DeepTools
             };
             keyboardCard.Controls.Add(keysTitle);
 
+            var multiLabel = new Label
+            {
+                Text = Lang.T("Несколько клавиш", "Multiple keys"),
+                ForeColor = Theme.TextMain,
+                BackColor = Color.Transparent,
+                Font = new Font("Segoe UI", 9F),
+                Location = new Point(470, 14),
+                AutoSize = true
+            };
+            keyboardCard.Controls.Add(multiLabel);
+
+            multiKeyToggle = new ToggleSwitch { Location = new Point(600, 10), Checked = false };
+            multiKeyToggle.CheckedChanged += (s, e) => OnMultiKeyToggle();
+            keyboardCard.Controls.Add(multiKeyToggle);
+
             BuildKeyboard(keyboardCard, 18, 42);
 
             UpdateInterval();
             SelectMouse(false);
+        }
+
+        // Включение/выключение режима нескольких клавиш. При смене чистим выбор,
+        // чтобы не было каши между одиночным и мульти-режимом
+        private void OnMultiKeyToggle()
+        {
+            multiKeyMode = multiKeyToggle.Checked;
+            multiKeys.Clear();
+            if (holdActive) { HoldUp(); if (running) SetRunning(false); }
+            ResetKeyHighlight();
+            if (multiKeyMode)
+            {
+                // Мультирежим работает как спам-клавиатура
+                isKeyboardMode = true;
+                mousePicker.Dimmed = true;
+                mousePicker.Invalidate();
+                leftBtnLabel.ForeColor = Theme.TextDim; leftBtnLabel.Text = Lang.T("○ Левая", "○ Left");
+                rightBtnLabel.ForeColor = Theme.TextDim; rightBtnLabel.Text = Lang.T("○ Правая", "○ Right");
+            }
+            UpdateSelectionLabel();
         }
 
         // Раскладка: {подпись, клавиша, ширина}. Ширина 0 = стандартные 40px
@@ -530,6 +570,14 @@ namespace DeepTools
             // Если сейчас что-то зажато - отпускаем перед сменой цели
             if (holdActive) { HoldUp(); if (running) SetRunning(false); }
 
+            // Выбор мыши выключает мультиклавишный режим
+            if (multiKeyMode)
+            {
+                multiKeyMode = false;
+                multiKeys.Clear();
+                if (multiKeyToggle != null) { multiKeyToggle.Checked = false; multiKeyToggle.Invalidate(); }
+            }
+
             isKeyboardMode = false;
             mousePicker.RightSelected = rightSelected;
             mousePicker.Dimmed = false;
@@ -550,7 +598,18 @@ namespace DeepTools
         {
             string action = holdMode ? Lang.T("Зажимаем: ", "Holding: ") : Lang.T("Спамим: ", "Spamming: ");
             string target;
-            if (isKeyboardMode)
+            if (multiKeyMode)
+            {
+                if (multiKeys.Count == 0) target = Lang.T("выбери клавиши", "pick keys");
+                else
+                {
+                    var names = new List<string>();
+                    for (int i = 0; i < keyButtons.Count; i++)
+                        if (multiKeys.Contains(keyButtons[i].Key)) names.Add(keyButtons[i].Label);
+                    target = Lang.T("клавиши ", "keys ") + string.Join(", ", names.ToArray());
+                }
+            }
+            else if (isKeyboardMode)
             {
                 target = Lang.T("клавиша ", "key ") + selectedKeyLabel;
             }
@@ -589,9 +648,16 @@ namespace DeepTools
             rightBtnLabel.ForeColor = Theme.TextDim;
             rightBtnLabel.Text = Lang.T("○ Правая", "○ Right");
 
+            // В мультирежиме клик по клавише добавляет/убирает её из набора
+            if (multiKeyMode)
+            {
+                if (multiKeys.Contains(key)) multiKeys.Remove(key);
+                else multiKeys.Add(key);
+            }
+
             for (int i = 0; i < keyButtons.Count; i++)
             {
-                bool selected = keyButtons[i].Key == key;
+                bool selected = multiKeyMode ? multiKeys.Contains(keyButtons[i].Key) : keyButtons[i].Key == key;
                 keyButtons[i].Btn.ButtonColor = selected ? Theme.Accent : Theme.KeyColor;
                 keyButtons[i].Btn.TextColor = selected ? Theme.BgColor : Theme.TextMain;
                 keyButtons[i].Btn.Invalidate();
@@ -727,18 +793,19 @@ namespace DeepTools
 
         private void DoClick()
         {
-            if (isKeyboardMode) NativeMethods.PressKey(selectedKey);
+            if (multiKeyMode)
+            {
+                // Спамим все выбранные клавиши по очереди
+                for (int i = 0; i < multiKeys.Count; i++) NativeMethods.PressKey(multiKeys[i]);
+            }
+            else if (isKeyboardMode) NativeMethods.PressKey(selectedKey);
             else if (mousePicker.RightSelected) NativeMethods.ClickRight();
             else NativeMethods.ClickLeft();
 
             sessionClicks++;
             totalClicks++;
-            // Обновляем текст раз в 5 кликов, чтобы не мигало на высоких CPS
-            if (sessionClicks % 5 == 0 || sessionClicks < 5)
-            {
-                sessionClicksLabel.Text = Lang.T("За сессию: ", "Session: ") + sessionClicks.ToString("N0");
-                totalClicksLabel.Text = Lang.T("Всего: ", "Total: ") + totalClicks.ToString("N0");
-            }
+            sessionClicksLabel.Text = Lang.T("За сессию: ", "Session: ") + sessionClicks.ToString("N0");
+            totalClicksLabel.Text = Lang.T("Всего: ", "Total: ") + totalClicks.ToString("N0");
         }
     }
 }
