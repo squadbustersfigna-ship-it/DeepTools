@@ -1,4 +1,5 @@
 using System;
+using System.Management;
 using LibreHardwareMonitor.Hardware;
 
 namespace DeepTools
@@ -59,7 +60,16 @@ namespace DeepTools
         {
             IHardware hw;
             lock (sync) { hw = cpu; }
-            if (hw == null) return -1;
+
+            // LibreHardwareMonitor не поднялся (драйвер не загрузился, конфликт с другим
+            // монитором, Secure Boot и т.п.) - пробуем запасной ACPI-датчик Windows.
+            // Он есть не на всех платах и часто показывает температуру платы, а не ядра,
+            // но это лучше, чем "н/д". Заодно пробуем ещё раз инициализировать LHM.
+            if (hw == null)
+            {
+                if (!initStarted) InitAsync();
+                return GetAcpiTemperature();
+            }
 
             try
             {
@@ -83,6 +93,26 @@ namespace DeepTools
                 }
                 if (package > 0) return (int)Math.Round(package);
                 if (best > 0) return (int)Math.Round(best);
+            }
+            catch { }
+
+            // LHM есть, но датчиков не отдал - пробуем ACPI как запасной вариант
+            return GetAcpiTemperature();
+        }
+
+        // Запасной датчик через WMI: MSAcpi_ThermalZoneTemperature (десятые доли кельвина)
+        private static int GetAcpiTemperature()
+        {
+            try
+            {
+                var searcher = new ManagementObjectSearcher(
+                    "root\\WMI", "SELECT CurrentTemperature FROM MSAcpi_ThermalZoneTemperature");
+                foreach (ManagementObject obj in searcher.Get())
+                {
+                    double tenthsKelvin = Convert.ToDouble(obj["CurrentTemperature"]);
+                    double celsius = (tenthsKelvin / 10.0) - 273.15;
+                    if (celsius > 0 && celsius < 150) return (int)Math.Round(celsius);
+                }
             }
             catch { }
             return -1;

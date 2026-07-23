@@ -27,7 +27,7 @@ namespace DeepTools
 
         public SmartCleanupPanel()
         {
-            Size = new Size(700, 566);
+            Size = new Size(760, 616);
             BackColor = Theme.BgColor;
 
             BuildCategoryList();
@@ -197,6 +197,23 @@ namespace DeepTools
                 }
             };
             Controls.Add(debloatBtn);
+
+            var uninstallBtn = new RoundedButton
+            {
+                Text = Lang.T("Деинсталлятор программ", "Program uninstaller"),
+                ButtonColor = Theme.KeyColor,
+                HoverColor = Theme.KeyHover,
+                TextColor = Theme.TextMain,
+                Location = new Point(564, y + 10),
+                Size = new Size(210, 36)
+            };
+            uninstallBtn.Click += (s, e) => {
+                using (var f = new UninstallerForm())
+                {
+                    f.ShowDialog(FindForm());
+                }
+            };
+            Controls.Add(uninstallBtn);
 
             totalLabel = new Label
             {

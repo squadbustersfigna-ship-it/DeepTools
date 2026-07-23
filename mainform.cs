@@ -69,6 +69,7 @@ namespace DeepTools
             StartupGuard.Start();
             MinerGuard.Start();
             TempHistory.Start();
+            NotesManager.RestoreAll();
             UpdateChecker.CheckInBackground(true, null);
             WinKeyBlocker.Init();
             FormClosed += (s, e) => WinKeyBlocker.Shutdown();
@@ -178,6 +179,7 @@ namespace DeepTools
             var menuItems = new System.Collections.Generic.List<TrayMenuItem>
             {
                 new TrayMenuItem("▢", Lang.T("Показать", "Show"), () => ShowWindow()),
+                new TrayMenuItem("📝", Lang.T("Новая заметка", "New note"), () => NotesManager.CreateNew()),
                 new TrayMenuItem("–", Lang.T("Скрыть", "Hide"), () => HideWindow()),
                 new TrayMenuItem("✕", Lang.T("Выход", "Exit"), () => ExitApplication()) { Danger = true }
             };
@@ -659,6 +661,81 @@ namespace DeepTools
                 StyleChoice(ruBtn, false); StyleChoice(enBtn, true);
                 OfferRestart();
             };
+
+            // Карточка: автозапуск и быстрые действия питания
+            var sysCard = Theme.MakeCard(panel, new Point(24, 340), new Size(640, 190));
+
+            var sysTitle = new Label
+            {
+                Text = Lang.T("Автозапуск и питание", "Startup & power"),
+                ForeColor = Theme.TextMain,
+                BackColor = Color.Transparent,
+                Font = new Font("Segoe UI", 10F, FontStyle.Bold),
+                Location = new Point(20, 14),
+                AutoSize = true
+            };
+            sysCard.Controls.Add(sysTitle);
+
+            var autoStartLabel = new Label
+            {
+                Text = Lang.T("Запускать DeepTools вместе с Windows", "Launch DeepTools with Windows"),
+                ForeColor = Theme.TextMain,
+                BackColor = Color.Transparent,
+                Font = new Font("Segoe UI", 9F),
+                Location = new Point(20, 48),
+                AutoSize = true
+            };
+            sysCard.Controls.Add(autoStartLabel);
+
+            var autoStartToggle = new ToggleSwitch { Location = new Point(580, 44), Checked = AutoStart.Enabled };
+            autoStartToggle.CheckedChanged += (s, e) => { AutoStart.Enabled = autoStartToggle.Checked; };
+            sysCard.Controls.Add(autoStartToggle);
+
+            var fastStartLabel = new Label
+            {
+                Text = Lang.T("Быстрый запуск Windows (гибридное завершение)", "Windows Fast Startup (hybrid shutdown)"),
+                ForeColor = Theme.TextMain,
+                BackColor = Color.Transparent,
+                Font = new Font("Segoe UI", 9F),
+                Location = new Point(20, 84),
+                AutoSize = true
+            };
+            sysCard.Controls.Add(fastStartLabel);
+
+            var fastStartToggle = new ToggleSwitch { Location = new Point(580, 80), Checked = PowerTools.FastStartupEnabled };
+            fastStartToggle.CheckedChanged += (s, e) => { PowerTools.FastStartupEnabled = fastStartToggle.Checked; };
+            sysCard.Controls.Add(fastStartToggle);
+
+            var biosBtn = new RoundedButton
+            {
+                Text = Lang.T("Перезагрузка в BIOS/UEFI", "Restart to BIOS/UEFI"),
+                ButtonColor = Theme.KeyColor,
+                HoverColor = Theme.KeyHover,
+                TextColor = Theme.TextMain,
+                Font = new Font("Segoe UI", 9F, FontStyle.Bold),
+                Location = new Point(20, 128),
+                Size = new Size(220, 34)
+            };
+            biosBtn.Click += (s, e) => {
+                if (MessageBox.Show(
+                    Lang.T("Перезагрузить компьютер сейчас и войти в BIOS/UEFI?", "Restart the PC now and enter BIOS/UEFI?"),
+                    "DeepTools", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes)
+                    PowerTools.RestartToFirmware();
+            };
+            sysCard.Controls.Add(biosBtn);
+
+            var restartExplorerBtn = new RoundedButton
+            {
+                Text = Lang.T("Перезапустить проводник", "Restart Explorer"),
+                ButtonColor = Theme.KeyColor,
+                HoverColor = Theme.KeyHover,
+                TextColor = Theme.TextMain,
+                Font = new Font("Segoe UI", 9F, FontStyle.Bold),
+                Location = new Point(252, 128),
+                Size = new Size(220, 34)
+            };
+            restartExplorerBtn.Click += (s, e) => PowerTools.RestartExplorer();
+            sysCard.Controls.Add(restartExplorerBtn);
 
             return panel;
         }

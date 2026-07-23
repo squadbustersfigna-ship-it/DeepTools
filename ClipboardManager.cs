@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Text;
 using System.Windows.Forms;
 
 namespace DeepTools
@@ -17,6 +19,8 @@ namespace DeepTools
         {
             get
             {
+                if (Type == "image") return Lang.T("[Изображение]", "[Image]");
+                if (Content == null) return "";
                 string preview = Content.Length > 50 ? Content.Substring(0, 50) + "..." : Content;
                 return preview.Replace("\n", " ").Replace("\r", "");
             }
@@ -64,9 +68,59 @@ namespace DeepTools
                         lastClipboard = text;
                         AddEntry(text, "text");
                     }
+                    return;
+                }
+
+                // Изображение (скриншот, копирование картинки) - сохраняем в файл,
+                // в истории храним путь к нему
+                if (data.GetDataPresent(DataFormats.Bitmap))
+                {
+                    using (System.Drawing.Image img = Clipboard.GetImage())
+                    {
+                        if (img == null) return;
+                        string hash = ImageHash(img);
+                        if (hash == lastClipboard) return;
+                        lastClipboard = hash;
+
+                        string path = SaveImageFile(img);
+                        if (path != null) AddEntry(path, "image");
+                    }
                 }
             }
             catch { }
+        }
+
+        private static string ImageDir
+        {
+            get { return Path.Combine(Path.GetDirectoryName(FilePath), "clipboard_img"); }
+        }
+
+        private static string ImageHash(System.Drawing.Image img)
+        {
+            try
+            {
+                using (var ms = new MemoryStream())
+                {
+                    img.Save(ms, System.Drawing.Imaging.ImageFormat.Png);
+                    byte[] bytes = ms.ToArray();
+                    using (var md5 = System.Security.Cryptography.MD5.Create())
+                        return "img:" + BitConverter.ToString(md5.ComputeHash(bytes));
+                }
+            }
+            catch { return "img:" + img.Width + "x" + img.Height; }
+        }
+
+        private static string SaveImageFile(System.Drawing.Image img)
+        {
+            try
+            {
+                if (!Directory.Exists(ImageDir)) Directory.CreateDirectory(ImageDir);
+                string name = "img_" + Guid.NewGuid().ToString("N").Substring(0, 12) + ".png";
+                string path = Path.Combine(ImageDir, name);
+                img.Save(path, System.Drawing.Imaging.ImageFormat.Png);
+                return path;
+            }
+            catch { return null; }
         }
 
         public void AddEntry(string content, string type = "text")
@@ -116,6 +170,8 @@ namespace DeepTools
 
         public void RemoveEntry(string id)
         {
+            var entry = history.FirstOrDefault(e => e.Id == id);
+            if (entry != null && entry.Type == "image") TryDeleteImage(entry.Content);
             history.RemoveAll(e => e.Id == id);
             SaveHistory();
             if (HistoryChanged != null)
@@ -124,29 +180,115 @@ namespace DeepTools
 
         public void ClearHistory()
         {
+            foreach (var e in history)
+                if (e.Type == "image") TryDeleteImage(e.Content);
             history.Clear();
             SaveHistory();
             if (HistoryChanged != null)
                 HistoryChanged(this, EventArgs.Empty);
         }
 
+        private static void TryDeleteImage(string path)
+        {
+            try { if (!string.IsNullOrEmpty(path) && File.Exists(path)) File.Delete(path); }
+            catch { }
+        }
+
         public void RestoreEntry(string id)
         {
             var entry = history.FirstOrDefault(e => e.Id == id);
-            if (entry != null && entry.Type == "text")
+            if (entry == null) return;
+
+            if (entry.Type == "image")
+            {
+                try
+                {
+                    if (File.Exists(entry.Content))
+                        using (var tmp = System.Drawing.Image.FromFile(entry.Content))
+                        using (var bmp = new System.Drawing.Bitmap(tmp))
+                            Clipboard.SetImage(bmp);
+                }
+                catch { }
+            }
+            else if (!string.IsNullOrEmpty(entry.Content))
             {
                 Clipboard.SetText(entry.Content);
             }
         }
 
+        // Файл истории в AppData. Строка: id|pinned|type|ticks|base64(content).
+        // Контент кодируем в base64 - в буфер попадает многострочный текст с любыми
+        // символами, а base64 гарантированно без переносов и разделителей "|"
+        private static string FilePath
+        {
+            get
+            {
+                return Path.Combine(
+                    Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "DeepTools"),
+                    "clipboard.dat");
+            }
+        }
+
         private void SaveHistory()
         {
-            // TODO: Implement file saving for history persistence
+            try
+            {
+                string dir = Path.GetDirectoryName(FilePath);
+                if (!Directory.Exists(dir)) Directory.CreateDirectory(dir);
+
+                var lines = new List<string>();
+                foreach (ClipboardEntry e in history)
+                {
+                    if (e.Content == null) continue;
+                    string b64 = Convert.ToBase64String(Encoding.UTF8.GetBytes(e.Content));
+                    lines.Add(e.Id + "|" + (e.IsPinned ? "1" : "0") + "|" + (e.Type ?? "text")
+                        + "|" + e.Timestamp.Ticks + "|" + b64);
+                }
+                File.WriteAllLines(FilePath, lines.ToArray());
+            }
+            catch
+            {
+                // не смогли сохранить - не критично, история просто не переживёт перезапуск
+            }
         }
 
         private void LoadHistory()
         {
-            // TODO: Implement file loading for history persistence
+            try
+            {
+                if (!File.Exists(FilePath)) return;
+                string[] lines = File.ReadAllLines(FilePath);
+                for (int i = 0; i < lines.Length; i++)
+                {
+                    // 5 частей, но base64 сам "|" не содержит, поэтому split с лимитом безопасен
+                    string[] parts = lines[i].Split(new[] { '|' }, 5);
+                    if (parts.Length < 5) continue;
+
+                    long ticks;
+                    if (!long.TryParse(parts[3], out ticks)) continue;
+
+                    string content;
+                    try { content = Encoding.UTF8.GetString(Convert.FromBase64String(parts[4])); }
+                    catch { continue; }
+
+                    history.Add(new ClipboardEntry
+                    {
+                        Id = parts[0],
+                        IsPinned = parts[1] == "1",
+                        Type = parts[2],
+                        Timestamp = new DateTime(ticks),
+                        Content = content
+                    });
+                }
+
+                // Чтобы монитор не добавил дубликатом первый же скопированный ранее текст
+                var first = history.FirstOrDefault(e => e.Type == "text");
+                if (first != null) lastClipboard = first.Content;
+            }
+            catch
+            {
+                // повреждённый файл - просто стартуем с пустой историей
+            }
         }
     }
 }

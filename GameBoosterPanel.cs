@@ -78,6 +78,7 @@ namespace DeepTools
                 crosshairForm = new CrosshairForm(crossShape, crossColor, crossScale);
                 crosshairForm.Show();
             }
+            SaveCrosshairConfig();
         }
 
         private void SaveAndRefreshCrosshair()
@@ -116,6 +117,7 @@ namespace DeepTools
                 overlayToggle.Checked = visible;
                 overlayToggle.Invalidate();
             }
+            AppConfig.SetBool("overlay_on", visible);
         }
 
         public void ToggleOverlay()
@@ -146,9 +148,36 @@ namespace DeepTools
             detectTimer.Tick += (s, e) => DetectFullscreenGame();
 
             BuildUi();
+            LoadPersistedState();
             RefreshHeavyList();
 
             detectTimer.Start();
+        }
+
+        // Восстановление прицела и оверлея после перезапуска программы
+        private void LoadPersistedState()
+        {
+            crossShape = AppConfig.Get("cross_shape", "cross");
+            int argb;
+            if (int.TryParse(AppConfig.Get("cross_color", ""), out argb)) crossColor = Color.FromArgb(argb);
+            int sc;
+            if (int.TryParse(AppConfig.Get("cross_scale", "2"), out sc)) crossScale = Math.Max(1, Math.Min(3, sc));
+
+            if (AppConfig.GetBool("cross_on", false))
+            {
+                crosshairToggle.Checked = true;
+                crosshairToggle.Invalidate();
+                ApplyCrosshair();
+            }
+            if (AppConfig.GetBool("overlay_on", false)) SetOverlayVisible(true);
+        }
+
+        private void SaveCrosshairConfig()
+        {
+            AppConfig.Set("cross_shape", crossShape);
+            AppConfig.Set("cross_color", crossColor.ToArgb().ToString());
+            AppConfig.Set("cross_scale", crossScale.ToString());
+            AppConfig.SetBool("cross_on", crosshairToggle.Checked);
         }
 
         private void BuildUi()
