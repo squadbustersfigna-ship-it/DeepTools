@@ -42,7 +42,12 @@ namespace DeepTools
 
             BuildUi();
             Load += (s, e) => { ApplyRoundedRegion(); LoadApps(); };
+            // Когда пользователь возвращается в окно после штатного деинсталлятора,
+            // перечитываем список - удалённая программа пропадёт
+            Activated += (s, e) => { if (loadedOnce) LoadApps(); };
         }
+
+        private bool loadedOnce = false;
 
         private void ApplyRoundedRegion()
         {
@@ -164,6 +169,7 @@ namespace DeepTools
                 list.Items.Add(a.Name + size);
             }
             statusLabel.Text = Lang.T("Программ: ", "Programs: ") + apps.Count;
+            loadedOnce = true;
         }
 
         private void CollectFrom(RegistryKey hive, string subkey, HashSet<string> seen)

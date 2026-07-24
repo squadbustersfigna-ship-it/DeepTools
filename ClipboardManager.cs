@@ -137,7 +137,11 @@ namespace DeepTools
             history.Insert(0, entry);
 
             if (history.Count > maxHistorySize)
+            {
+                var old = history[history.Count - 1];
+                if (old.Type == "image") TryDeleteImage(old.Content); // не оставляем файл-сироту
                 history.RemoveAt(history.Count - 1);
+            }
 
             SaveHistory();
             if (HistoryChanged != null)

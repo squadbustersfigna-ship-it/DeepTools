@@ -145,7 +145,7 @@ namespace DeepTools
         private void RefreshStats()
         {
             try { if (cpuCounter != null) cpuValue = cpuCounter.NextValue(); } catch { }
-            try { gpuLoad = gpuCounter != null ? gpuCounter.NextValue() : -1; } catch { gpuLoad = -1; }
+            gpuLoad = GpuLoad.Get();
             gpuTemp = NvmlGpu.GetTemperature();
             Invalidate();
         }

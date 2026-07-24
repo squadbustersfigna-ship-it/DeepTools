@@ -393,18 +393,18 @@ namespace DeepTools
             var divider = new Panel { Location = new Point(16, 86), Size = new Size(188, 1), BackColor = Theme.BorderColor };
             sidebar.Controls.Add(divider);
 
-            navHome = MakeNavItem(Lang.T("Главная", "Home"), 100);
-            navCleanup = MakeNavItem("SmartCleanup", 140);
-            navBooster = MakeNavItem("GameBooster", 180);
-            navHealth = MakeNavItem("Health Check", 220);
-            navSysInfo = MakeNavItem(Lang.T("Мой ПК", "My PC"), 260);
-            navStartup = MakeNavItem(Lang.T("Автозагрузка", "Startup"), 300);
-            navServices = MakeNavItem(Lang.T("Службы", "Services"), 340);
-            navVisual = MakeNavItem(Lang.T("Визуальные эффекты", "Visual effects"), 380);
-            navClicker = MakeNavItem("Clicker", 420);
-            navScreenshots = MakeNavItem(Lang.T("Скриншоты", "Screenshots"), 460);
-            navClipboard = MakeNavItem(Lang.T("Буфер обмена", "Clipboard"), 500);
-            navSettings = MakeNavItem(Lang.T("Настройки", "Settings"), 540);
+            navHome = MakeNavItem("⌂   " + Lang.T("Главная", "Home"), 100);
+            navCleanup = MakeNavItem("♻   SmartCleanup", 140);
+            navBooster = MakeNavItem("⚡   GameBooster", 180);
+            navHealth = MakeNavItem("❤   Health Check", 220);
+            navSysInfo = MakeNavItem("▤   " + Lang.T("Мой ПК", "My PC"), 260);
+            navStartup = MakeNavItem("⭯   " + Lang.T("Автозагрузка", "Startup"), 300);
+            navServices = MakeNavItem("⚙   " + Lang.T("Службы", "Services"), 340);
+            navVisual = MakeNavItem("✦   " + Lang.T("Визуальные эффекты", "Visual effects"), 380);
+            navClicker = MakeNavItem("⊙   Clicker", 420);
+            navScreenshots = MakeNavItem("▣   " + Lang.T("Скриншоты", "Screenshots"), 460);
+            navClipboard = MakeNavItem("❏   " + Lang.T("Буфер обмена", "Clipboard"), 500);
+            navSettings = MakeNavItem("⚙   " + Lang.T("Настройки", "Settings"), 540);
 
             navHome.Click += (s, e) => ShowPanel(panelHome, navHome);
             navSysInfo.Click += (s, e) => ShowPanel(panelSysInfo, navSysInfo);

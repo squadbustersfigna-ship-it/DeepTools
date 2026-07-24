@@ -721,9 +721,8 @@ namespace DeepTools
 
         private string GetGpuUsage()
         {
-            if (gpuCounter == null) return Lang.T("н/д", "n/a");
-            try { return string.Format("{0:0.0}%", gpuCounter.NextValue()); }
-            catch { return Lang.T("н/д", "n/a"); }
+            float v = GpuLoad.Get();
+            return v < 0 ? Lang.T("н/д", "n/a") : string.Format("{0:0.0}%", v);
         }
 
         private string GetTempDisplay()

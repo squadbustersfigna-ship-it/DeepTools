@@ -189,6 +189,48 @@ namespace DeepTools
             MakeQuickCard(new Point(506, 406), "⚙",
                 Lang.T("Настройки", "Settings"),
                 Lang.T("Тема, язык, права", "Theme, language, rights"), "settings");
+
+            var ramBtn = new RoundedButton
+            {
+                Text = Lang.T("🧹 Освободить RAM", "🧹 Free RAM"),
+                ButtonColor = Theme.Accent,
+                HoverColor = Theme.AccentHover,
+                TextColor = Theme.BgColor,
+                Location = new Point(24, 516),
+                Size = new Size(190, 34)
+            };
+            ramBtn.Click += (s, e) => FreeRam();
+            Controls.Add(ramBtn);
+
+            ramResultLabel = new Label
+            {
+                Text = "",
+                ForeColor = Theme.TextDim,
+                BackColor = Color.Transparent,
+                Font = new Font("Segoe UI", 9F),
+                Location = new Point(226, 524),
+                Size = new Size(500, 18),
+                AutoEllipsis = true
+            };
+            Controls.Add(ramResultLabel);
+        }
+
+        private Label ramResultLabel;
+
+        private void FreeRam()
+        {
+            ramResultLabel.ForeColor = Theme.TextDim;
+            ramResultLabel.Text = Lang.T("Освобождаю память...", "Freeing memory...");
+            var worker = new System.ComponentModel.BackgroundWorker();
+            worker.DoWork += (s, e) => e.Result = RamCleaner.Clean();
+            worker.RunWorkerCompleted += (s, e) => {
+                long freed = e.Error == null && e.Result != null ? (long)e.Result : 0;
+                ramResultLabel.ForeColor = Theme.Accent;
+                ramResultLabel.Text = freed > 0
+                    ? Lang.T("Освобождено ~", "Freed ~") + freed + Lang.T(" МБ", " MB")
+                    : Lang.T("Память уже оптимальна", "Memory already optimal");
+            };
+            worker.RunWorkerAsync();
         }
 
         private void MakeStatTile(Point loc, string title, out Label valueLabel)

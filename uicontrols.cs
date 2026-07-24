@@ -356,6 +356,11 @@ namespace DeepTools
                     e.Graphics.FillPath(brush, path);
                     e.Graphics.DrawPath(pen, path);
                 }
+                // Тонкий блик по верхней кромке - карточка кажется приподнятой
+                using (var hi = new Pen(Color.FromArgb(28, 255, 255, 255)))
+                {
+                    e.Graphics.DrawLine(hi, 11, 1, card.Width - 12, 1);
+                }
             };
             parent.Controls.Add(card);
             return card;
